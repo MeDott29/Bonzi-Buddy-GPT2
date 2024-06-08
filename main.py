@@ -155,7 +155,7 @@ class Bonzi:
                 self.startup = False
 
             # When the animation is finished, go to a neutral frame in between animations.
-            default_frame = "animations/idle/0999.bmp"
+            default_frame = "idle/0999.bmp"
             self.load_bonzi_image(default_frame)
 
             if self.current_animation == "idle":
