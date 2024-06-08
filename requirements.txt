@@ -1,0 +1,10 @@
+datasets==2.19.2
+pygame==2.5.2
+pyttsx3==2.90
+safetensors==0.4.3
+tokenizers==0.19.1
+torch==2.0.1+cu117
+torchaudio==0.8.0
+torchvision==0.15.2+cu117
+transformers==4.41.2
+
