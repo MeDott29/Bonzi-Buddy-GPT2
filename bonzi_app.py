@@ -63,15 +63,16 @@ class Animation:
         """Return the list of frame filenames for the given animation command."""
         return self.animations.get(command)
 
-### CHATBOT USING OPENAI GPT-4 ###
+### CHATBOT USING OPENAI API ###
 class BonziChat:
     """A class for handling the chatbot logic using the OpenAI API via requests."""
     def __init__(self, bonzi):
         self.bonzi = bonzi
         self.api_key = OPENAI_API_KEY
-        # The system prompt instructs GPT-4 to output a special command if an animation is desired.
+        # The system prompt now includes the list of available animations.
         self.system_prompt = (
             "You are Bonzi Buddy, a friendly desktop assistant. "
+            "Your available animations are: idle, arrive, goodbye, backflip, glasses, wave, talking. "
             "When you want to trigger an animation, output a command in the format /animation:<animation_name> "
             "with no extra text. Otherwise, provide a normal text response."
         )
@@ -79,7 +80,7 @@ class BonziChat:
         self.engine = pyttsx3.init()
 
     def get_response(self, user_text):
-        """Get a response from GPT-4 using the OpenAI API."""
+        """Get a response from the OpenAI API."""
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_text}
@@ -89,11 +90,10 @@ class BonziChat:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        # Use the data structure as in the reference documentation.
         data = {
             "model": "o3-mini",
-            "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 100
+            "messages": messages
         }
 
         try:
@@ -101,7 +101,8 @@ class BonziChat:
             response.raise_for_status()
         except Exception as e:
             print("Error calling OpenAI API:", e)
-            return "I'm sorry, I encountered an error."
+            # Return the actual error response or exception message.
+            return f"Error calling API: {e}"
 
         result = response.json()
         reply = result["choices"][0]["message"]["content"].strip()
@@ -176,7 +177,7 @@ class InputBox:
                 if not self.processing_tts:
                     self.processing_tts = True
                     self.bonzi.current_animation = "talking"
-                    # Get response from GPT-4 via our BonziChat instance.
+                    # Get response from the API via our BonziChat instance.
                     response = self.bonzi.chatbot.get_response(self.text)
                     # Start TTS in a separate thread.
                     t = threading.Thread(target=self.bonzi.chatbot.text_to_speech, args=(response,))
@@ -294,7 +295,7 @@ class Bonzi:
         self.clock = pygame.time.Clock()
         self.current_frame = 0
 
-        # Initialize animations, chatbot (using GPT-4 API), input box, buttons.
+        # Initialize animations, chatbot (using OpenAI API), input box, buttons.
         self.animations = Animation(self)
         self.chatbot = BonziChat(self)
         self.input_box = InputBox(self, 10, 10, self.settings.input_box_width, self.settings.input_box_height)
@@ -303,6 +304,7 @@ class Bonzi:
         for i, button in enumerate(self.buttons):
             button.rect.x = button.spacer_x + i * (button.width + button.spacer_x)
             button.prep_msg(button.msg)
+        # current_animation is None unless explicitly set (by API call or button click).
         self.current_animation = None
         self.chat_bubble = None
         self.rect = None
@@ -318,7 +320,7 @@ class Bonzi:
     def update_screen(self):
         """Update the screen with the current state."""
         self.window.fill(self.background_color)
-        self.draw_bonzi(self.current_animation)
+        self.draw_bonzi()
         self.input_box.draw_box()
         for button in self.buttons:
             button.draw_button()
@@ -353,12 +355,15 @@ class Bonzi:
                         self.current_animation = "glasses"
                     self.current_frame = 0
 
-    def draw_bonzi(self, animation_name=None):
+    def draw_bonzi(self):
         """Determine and execute the appropriate animation."""
         if self.startup:
             frames = self.animations.get_animation("arrive")
-        elif animation_name:
-            frames = self.animations.get_animation(animation_name)
+        # If an API call or button has set an animation (and it isn’t 'idle'),
+        # use that animation to override the idle animation.
+        elif self.current_animation and self.current_animation != "idle":
+            frames = self.animations.get_animation(self.current_animation)
+        # If there has been no interaction for a while, default to idle.
         elif pygame.time.get_ticks() - self.last_interaction > 9000:
             frames = self.animations.get_animation("idle")
             self.current_animation = "idle"
@@ -376,9 +381,11 @@ class Bonzi:
                 self.startup = False
             default_frame = "idle/0999.bmp"
             self.load_bonzi_image(default_frame)
+            # Reset current_animation to None once a non-idle animation completes.
+            if self.current_animation != "idle":
+                self.current_animation = None
             if self.current_animation == "idle":
                 self.last_interaction = pygame.time.get_ticks()
-            self.current_animation = None
         else:
             frame = frames[self.current_frame]
             self.load_bonzi_image(frame)
