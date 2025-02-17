@@ -26,8 +26,8 @@ class Settings:
         # Window title
         self.window_title = "BonziBUDDY"
 
-        # Instead of a background image, we’ll use a solid color.
-        self.background_color = (0, 0, 0)  # Black
+        # Make the window transparent to show desktop
+        self.background_color = (0, 0, 0, 0)  # Transparent black
 
         # Color used for colorkey transparency in Bonzi images
         self.color_screen = "#04fcfc"
@@ -144,13 +144,17 @@ class InputBox:
         self.window_rect = self.window.get_rect()
 
         self.rect = pygame.Rect(x, y, width, height)
-        self.color = (255, 255, 255)
+        self.color = (255, 255, 255, 180)  # Semi-transparent white
         self.text = text
         self.text_color = (0, 0, 0)
         self.font = pygame.font.Font(None, 32)
         self.txt_surface = self.font.render(text, True, self.text_color)
         self.active = False
         self.processing_tts = False
+
+        # Create a surface for semi-transparent background
+        self.background_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.rect(self.background_surface, self.color, self.background_surface.get_rect())
 
         # Align with middle bottom of window, with a 10-pixel margin.
         self.rect.midbottom = self.window_rect.midbottom
@@ -170,7 +174,8 @@ class InputBox:
                 self.active = False
 
             self.txt_surface = self.font.render(self.text, True, self.text_color)
-            self.color = (200, 200, 200) if self.active else (255, 255, 255)
+            self.color = (200, 200, 200, 180) if self.active else (255, 255, 255, 180)
+            pygame.draw.rect(self.background_surface, self.color, self.background_surface.get_rect())
 
         if event.type == pygame.KEYDOWN and self.active:
             if event.key == pygame.K_RETURN:
@@ -196,7 +201,7 @@ class InputBox:
 
     def draw_box(self):
         """Draw the input box on the screen."""
-        pygame.draw.rect(self.window, self.color, self.rect)
+        self.window.blit(self.background_surface, self.rect)
         wrapped_text = textwrap.fill(self.text, self.line_char_limit)
         lines = wrapped_text.split('\n')
         for i, line in enumerate(lines):
@@ -211,12 +216,16 @@ class Button:
         self.window_rect = self.window.get_rect()
 
         self.width, self.height = 100, 50
-        self.button_color = (255, 255, 255)
+        self.button_color = (255, 255, 255, 180)  # Semi-transparent white
         self.text_color = (0, 0, 0)
         self.font = pygame.font.SysFont(None, 24)
 
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.topleft = self.window_rect.topleft
+
+        # Create a surface for semi-transparent background
+        self.background_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        pygame.draw.rect(self.background_surface, self.button_color, self.background_surface.get_rect())
 
         self.spacer_x = 10
         self.spacer_y = 10
@@ -228,13 +237,13 @@ class Button:
 
     def prep_msg(self, msg):
         """Render the button's message."""
-        self.msg_image = self.font.render(msg, True, self.text_color, self.button_color)
+        self.msg_image = self.font.render(msg, True, self.text_color)
         self.msg_image_rect = self.msg_image.get_rect()
         self.msg_image_rect.center = self.rect.center
 
     def draw_button(self):
         """Draw the button."""
-        self.window.fill(self.button_color, self.rect)
+        self.window.blit(self.background_surface, self.rect)
         self.window.blit(self.msg_image, self.msg_image_rect)
 
 ### CHAT BUBBLE ###
@@ -251,13 +260,15 @@ class ChatBubble:
             self.text_width, self.text_height = self.font.size("")
         self.padding = 20
         self.text_surface = pygame.Surface(
-            (self.text_width + 2 * self.padding, len(lines) * self.text_height + 2 * self.padding)
+            (self.text_width + 2 * self.padding, len(lines) * self.text_height + 2 * self.padding),
+            pygame.SRCALPHA
         )
-        self.text_surface.fill("white")
-        self.text_surface.set_colorkey("white")
-        self.tail_surface = pygame.Surface((20, 20))
-        self.tail_surface.set_colorkey((0, 0, 0))
-        pygame.draw.polygon(self.tail_surface, (255, 255, 255), [(10, 0), (0, 20), (20, 20)])
+        # Make chat bubble semi-transparent
+        self.bubble_color = (255, 255, 255, 180)
+        self.text_surface.fill((0, 0, 0, 0))
+        self.tail_surface = pygame.Surface((20, 20), pygame.SRCALPHA)
+        self.tail_surface.fill((0, 0, 0, 0))
+        pygame.draw.polygon(self.tail_surface, self.bubble_color, [(10, 0), (0, 20), (20, 20)])
         self.tail_surface = pygame.transform.rotate(self.tail_surface, 180)
 
     def wrap_text(self, text, max_width):
@@ -272,11 +283,15 @@ class ChatBubble:
             self.text_surface.blit(line_surface, (self.padding, self.padding + i * self.text_height))
         bubble_x = self.bonzi.rect.centerx - self.text_surface.get_width() // 2
         bubble_y = self.bonzi.rect.y - self.text_surface.get_height() - 180
-        bubble_rect = pygame.draw.rect(self.bonzi.window, (255, 255, 255),
-                                       (bubble_x, bubble_y, self.text_surface.get_width(),
-                                        self.text_surface.get_height()))
-        self.bonzi.window.blit(self.tail_surface, (bubble_rect.centerx - 10, bubble_rect.bottom))
-        self.bonzi.window.blit(self.text_surface, bubble_rect.topleft)
+        
+        # Create a semi-transparent surface for the bubble background
+        bubble_surface = pygame.Surface((self.text_surface.get_width(), self.text_surface.get_height()), pygame.SRCALPHA)
+        pygame.draw.rect(bubble_surface, self.bubble_color, bubble_surface.get_rect())
+        
+        # Blit the background, tail, and text
+        self.bonzi.window.blit(bubble_surface, (bubble_x, bubble_y))
+        self.bonzi.window.blit(self.tail_surface, (bubble_x + self.text_surface.get_width() // 2 - 10, bubble_y + self.text_surface.get_height()))
+        self.bonzi.window.blit(self.text_surface, (bubble_x, bubble_y))
 
 ### MAIN BONZI CLASS ###
 class Bonzi:
@@ -284,9 +299,10 @@ class Bonzi:
     def __init__(self):
         pygame.init()
         self.settings = Settings()
-        self.window = pygame.display.set_mode((self.settings.window_width, self.settings.window_height))
+        # Set window to be transparent and borderless
+        self.window = pygame.display.set_mode((self.settings.window_width, self.settings.window_height), pygame.NOFRAME | pygame.SRCALPHA)
         pygame.display.set_caption(self.settings.window_title)
-        # Instead of a background image, use a solid color.
+        # Make the window transparent
         self.background_color = self.settings.background_color
 
         self.running = True
@@ -319,7 +335,8 @@ class Bonzi:
 
     def update_screen(self):
         """Update the screen with the current state."""
-        self.window.fill(self.background_color)
+        # Fill with transparent background
+        self.window.fill((0, 0, 0, 0))
         self.draw_bonzi()
         self.input_box.draw_box()
         for button in self.buttons:
@@ -359,7 +376,7 @@ class Bonzi:
         """Determine and execute the appropriate animation."""
         if self.startup:
             frames = self.animations.get_animation("arrive")
-        # If an API call or button has set an animation (and it isn’t 'idle'),
+        # If an API call or button has set an animation (and it isn't 'idle'),
         # use that animation to override the idle animation.
         elif self.current_animation and self.current_animation != "idle":
             frames = self.animations.get_animation(self.current_animation)
